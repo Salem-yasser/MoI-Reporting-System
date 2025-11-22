@@ -1,0 +1,17 @@
+{
+	"name": "TR_Sync_Every_15_Minutes",
+	"properties": {
+		"annotations": [],
+		"runtimeState": "Started",
+		"pipelines": [],
+		"type": "ScheduleTrigger",
+		"typeProperties": {
+			"recurrence": {
+				"frequency": "Minute",
+				"interval": 15,
+				"startTime": "2025-11-22T16:34:00",
+				"timeZone": "Egypt Standard Time"
+			}
+		}
+	}
+}
