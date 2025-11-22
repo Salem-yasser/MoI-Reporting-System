@@ -1,34 +1,3 @@
-# ============================================================
-# ISSUE 1: Analytics Database Connection String is Wrong
-# ============================================================
-
-"""
-Your .env has:
-SQLALCHEMY_DATABASE_URI_ANALYTICS=...;Database=Analytics Database;...
-
-PROBLEM: Database name has a SPACE which Azure doesn't handle well.
-
-FIX IN AZURE PORTAL:
-1. Go to your Analytics Database
-2. Check the actual name - it's probably "AnalyticsDatabase" (no space)
-3. Update .env or Key Vault
-
-CORRECTED CONNECTION STRING:
-"""
-
-# In .env file:
-SQLALCHEMY_DATABASE_URI_ANALYTICS=Driver={ODBC Driver 18 for SQL Server};Server=tcp:moi-server.database.windows.net,1433;Database=AnalyticsDatabase;Uid=moi-server-admin;Pwd={kMF8B7b8g$YBPQf3};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;
-
-# Or if it really is "Analytics Database" with space, encode it:
-SQLALCHEMY_DATABASE_URI_ANALYTICS=Driver={ODBC Driver 18 for SQL Server};Server=tcp:moi-server.database.windows.net,1433;Database=[Analytics Database];Uid=moi-server-admin;Pwd={kMF8B7b8g$YBPQf3};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;
-
-
-# ============================================================
-# ISSUE 2: report_service.py is ASYNC but database.py is SYNC
-# ============================================================
-
-# FILE: app/services/report_service.py (SYNC VERSION)
-
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
