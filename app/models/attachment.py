@@ -1,29 +1,38 @@
-from sqlalchemy import Column, String, BigInteger, ForeignKey
+from sqlalchemy import Column, String, BigInteger, ForeignKey, CheckConstraint
 from sqlalchemy.orm import relationship
-from app.core.database import Base
 
-class Attachment(Base):
-    __tablename__ = "Attachment"  # Matches SQL table name exactly
+from app.core.database import BaseOps  # ✅ Uses BaseOps
 
-    # Primary Key - matches [attachmentId] in SQL
-    attachmentId = Column(String(450), primary_key=True, index=True, name="attachmentId")
+class Attachment(BaseOps):
+    __tablename__ = "Attachment"
+    __table_args__ = (
+        CheckConstraint('fileSizeBytes > 0', name='CK_Attachment_FileSize'),
+        {'schema': 'dbo'}
+    )
+
+    # Primary Key
+    attachmentId = Column("attachmentId", String(450), primary_key=True, index=True)
     
-    # Foreign Key - matches [reportId] in SQL and references Report.reportId
+    # Foreign Key
     reportId = Column(
+        "reportId",
         String(450), 
-        ForeignKey("Report.reportId", ondelete="CASCADE"), 
-        nullable=False,
-        name="reportId"
+        ForeignKey("dbo.Report.reportId", ondelete="CASCADE"),
+        nullable=False
     )
     
-    # Metadata Columns - match SQL column names exactly
-    blobStorageUri = Column(String(2048), nullable=False, name="blobStorageUri")
-    mimeType = Column(String(100), nullable=False, name="mimeType")
-    fileType = Column(String(50), nullable=False, name="fileType")
-    fileSizeBytes = Column(BigInteger, nullable=False, name="fileSizeBytes")
+    # Metadata Columns
+    blobStorageUri = Column("blobStorageUri", String(2048), nullable=False)
+    mimeType = Column("mimeType", String(100), nullable=False)
+    fileType = Column("fileType", String(50), nullable=False)
+    fileSizeBytes = Column(
+        "fileSizeBytes",
+        BigInteger,
+        nullable=False
+    )
 
-    # Relationship - use string reference
+    # Relationship
     report = relationship("Report", back_populates="attachments")
 
     def __repr__(self):
-        return f"<Attachment(attachmentId={self.attachmentId}, reportId={self.reportId}, fileType={self.fileType})>"
+        return f"<Attachment(attachmentId={self.attachmentId}, fileType={self.fileType})>"

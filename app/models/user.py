@@ -1,24 +1,32 @@
-from sqlalchemy import Column, String, Boolean, DateTime, func
+from sqlalchemy import Column, String, Boolean, DateTime, func, CheckConstraint
 from sqlalchemy.orm import relationship
-from app.core.database import Base
 
-class User(Base):
-    __tablename__ = "User"  # Matches SQL table name exactly
+from app.core.database import BaseOps  # ✅ Uses BaseOps
 
-    # Primary Key - matches [userId] in SQL
-    userId = Column(String(450), primary_key=True, index=True, name="userId")
+class User(BaseOps):
+    __tablename__ = "User"
+    __table_args__ = (
+        CheckConstraint(
+            "(isAnonymous = 1) OR (email IS NOT NULL) OR (phoneNumber IS NOT NULL)",
+            name="CK_User_ContactInfo"
+        ),
+        {'schema': 'dbo'}
+    )
+
+    # Primary Key
+    userId = Column("userId", String(450), primary_key=True, index=True)
     
-    # Attributes - match SQL column names exactly
-    isAnonymous = Column(Boolean, nullable=False, default=False, name="isAnonymous")
-    createdAt = Column(DateTime, nullable=False, server_default=func.getutcdate(), name="createdAt")
-    role = Column(String(50), nullable=False, default="citizen", name="role")
+    # Attributes
+    isAnonymous = Column("isAnonymous", Boolean, nullable=False, default=False)
+    createdAt = Column("createdAt", DateTime, nullable=False, server_default=func.getutcdate())
+    role = Column("role", String(50), nullable=False, default="citizen")
     
-    email = Column(String(256), nullable=True, name="email")
-    phoneNumber = Column(String(20), nullable=True, name="phoneNumber")
-    hashedDeviceId = Column(String(256), nullable=True, name="hashedDeviceId")
+    email = Column("email", String(256), nullable=True)
+    phoneNumber = Column("phoneNumber", String(20), nullable=True)
+    hashedDeviceId = Column("hashedDeviceId", String(256), nullable=True)
 
-    # Relationships - use string references to avoid circular import
+    # Relationships
     reports = relationship("Report", back_populates="user")
 
     def __repr__(self):
-        return f"<User(userId={self.userId}, isAnonymous={self.isAnonymous}, role={self.role})>"
+        return f"<User(userId={self.userId}, role={self.role})>"

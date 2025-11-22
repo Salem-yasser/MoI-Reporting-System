@@ -8,7 +8,6 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-
 class Settings(BaseSettings):
     APP_NAME: str = "MoI Digital Reporting System"
     API_VERSION: str = "v1"
@@ -21,12 +20,32 @@ class Settings(BaseSettings):
     AZURE_CLIENT_ID: Optional[str] = None
     AZURE_CLIENT_SECRET: Optional[str] = None
     
-    # Secrets (loaded from Key Vault)
-    DATABASE_CONNECTION_STRING: Optional[str] = None
+    # =========================================================
+    # 🔐 Secrets (Loaded from Key Vault)
+    # =========================================================
+    
+    # 1. Databases (Hot & Cold)
+    SQLALCHEMY_DATABASE_URI_OPS: Optional[str] = None      # Operations DB (Hot)
+    SQLALCHEMY_DATABASE_URI_ANALYTICS: Optional[str] = None # Analytics DB (Cold)
+    
+    # 2. Storage
     BLOB_STORAGE_CONNECTION_STRING: Optional[str] = None
+    
+    # 3. Security
     SECRET_KEY: Optional[str] = None
     
-    # Static config
+    # 4. Hot Path Integration (Queue)
+    AZURE_SERVICE_BUS_CONNECTION_STRING: Optional[str] = None
+    
+    # 5. AI Services
+    AZURE_SPEECH_KEY: Optional[str] = None
+    AZURE_SPEECH_REGION: str = "eastus" # Can be overridden by env var
+    AZURE_ML_ENDPOINT: Optional[str] = None
+    AZURE_ML_API_KEY: Optional[str] = None
+    
+    # =========================================================
+    # ⚙️ Static Config
+    # =========================================================
     BLOB_CONTAINER_NAME: str = "report-attachments"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
@@ -41,9 +60,12 @@ class Settings(BaseSettings):
 class AzureKeyVaultManager:
     def __init__(self, settings: Settings):
         self.settings = settings
-        self.key_vault_url = f"https://{settings.AZURE_KEY_VAULT_NAME}.vault.azure.net/"
-        self.credential = self._get_credential()
-        self.secret_client = SecretClient(vault_url=self.key_vault_url, credential=self.credential)
+        # In local dev, we might skip KV if env vars are present, 
+        # but this ensures we can connect if needed.
+        if self.settings.AZURE_KEY_VAULT_NAME:
+            self.key_vault_url = f"https://{settings.AZURE_KEY_VAULT_NAME}.vault.azure.net/"
+            self.credential = self._get_credential()
+            self.secret_client = SecretClient(vault_url=self.key_vault_url, credential=self.credential)
     
     def _get_credential(self):
         if self.settings.ENVIRONMENT == "development":
@@ -64,30 +86,55 @@ class AzureKeyVaultManager:
             raise
 
     def load_secrets_to_settings(self, settings: Settings) -> Settings:
+        """
+        Maps Azure Key Vault secret names (Kebab-Case or CamelCase) 
+        to Pydantic Settings (SNAKE_CASE).
+        """
+        # Format: "NameInKeyVault": "NameInSettings"
         secrets_mapping = {
-            "DatabaseConnectionString": "DATABASE_CONNECTION_STRING",
+            # Databases
+            "SqlOpsConnectionString": "SQLALCHEMY_DATABASE_URI_OPS",
+            "SqlAnalyticsConnectionString": "SQLALCHEMY_DATABASE_URI_ANALYTICS",
+            
+            # Storage & Security
             "BlobStorageConnectionString": "BLOB_STORAGE_CONNECTION_STRING",
-            "SecretKey": "SECRET_KEY",
+            "JwtSecretKey": "SECRET_KEY",
+            
+            # Hot Path Queue
+            "ServiceBusConnectionString": "AZURE_SERVICE_BUS_CONNECTION_STRING",
+            
+            # AI Services
+            "SpeechServiceKey": "AZURE_SPEECH_KEY",
+            "AzureMlEndpoint": "AZURE_ML_ENDPOINT",
+            "AzureMlApiKey": "AZURE_ML_API_KEY",
         }
 
-        for secret_name, setting_name in secrets_mapping.items():
-            try:
-                value = self.get_secret(secret_name)
-                setattr(settings, setting_name, value)
-                logger.info(f"✓ Loaded secret: {secret_name}")
-            except Exception as e:
-                logger.error(f"✗ Failed to load secret '{secret_name}': {e}")
-                # Fail fast in production
-                if settings.ENVIRONMENT == "production":
-                    raise RuntimeError(f"Critical secret '{secret_name}' missing in production")
+        for kv_name, setting_name in secrets_mapping.items():
+            # Only fetch from KV if not already set via Environment Variable
+            if getattr(settings, setting_name) is None:
+                try:
+                    value = self.get_secret(kv_name)
+                    setattr(settings, setting_name, value)
+                    logger.info(f"✓ Loaded secret: {kv_name}")
+                except Exception as e:
+                    logger.error(f"✗ Failed to load secret '{kv_name}': {e}")
+                    # Fail fast in production
+                    if settings.ENVIRONMENT == "production":
+                        raise RuntimeError(f"Critical secret '{kv_name}' missing in production")
+        
         return settings
 
 
 @lru_cache()
 def get_settings() -> Settings:
     settings = Settings()
-    # Only load from Key Vault if secrets are not already set (e.g., via env vars in prod)
-    if settings.DATABASE_CONNECTION_STRING is None:
-        kv_manager = AzureKeyVaultManager(settings)
-        settings = kv_manager.load_secrets_to_settings(settings)
+    
+    # If critical DB connection is missing, attempt to load from Key Vault
+    if settings.SQLALCHEMY_DATABASE_URI_OPS is None and settings.AZURE_KEY_VAULT_NAME:
+        try:
+            kv_manager = AzureKeyVaultManager(settings)
+            settings = kv_manager.load_secrets_to_settings(settings)
+        except Exception as e:
+            logger.warning(f"Could not load secrets from Key Vault: {e}")
+            
     return settings
