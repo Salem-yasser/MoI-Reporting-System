@@ -1,9 +1,40 @@
+# ============================================================
+# ISSUE 1: Analytics Database Connection String is Wrong
+# ============================================================
+
+"""
+Your .env has:
+SQLALCHEMY_DATABASE_URI_ANALYTICS=...;Database=Analytics Database;...
+
+PROBLEM: Database name has a SPACE which Azure doesn't handle well.
+
+FIX IN AZURE PORTAL:
+1. Go to your Analytics Database
+2. Check the actual name - it's probably "AnalyticsDatabase" (no space)
+3. Update .env or Key Vault
+
+CORRECTED CONNECTION STRING:
+"""
+
+# In .env file:
+SQLALCHEMY_DATABASE_URI_ANALYTICS=Driver={ODBC Driver 18 for SQL Server};Server=tcp:moi-server.database.windows.net,1433;Database=AnalyticsDatabase;Uid=moi-server-admin;Pwd={kMF8B7b8g$YBPQf3};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;
+
+# Or if it really is "Analytics Database" with space, encode it:
+SQLALCHEMY_DATABASE_URI_ANALYTICS=Driver={ODBC Driver 18 for SQL Server};Server=tcp:moi-server.database.windows.net,1433;Database=[Analytics Database];Uid=moi-server-admin;Pwd={kMF8B7b8g$YBPQf3};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;
+
+
+# ============================================================
+# ISSUE 2: report_service.py is ASYNC but database.py is SYNC
+# ============================================================
+
+# FILE: app/services/report_service.py (SYNC VERSION)
+
 import uuid
 from datetime import datetime, timezone
-from typing import Optional, List
+from typing import Optional
 
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy.orm import Session  # ✅ Changed from AsyncSession
+from sqlalchemy import select, func  # ✅ Removed async imports
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException
 
@@ -22,20 +53,18 @@ def utcnow():
     return datetime.now(timezone.utc)
 
 class ReportService:
-    """Business logic for reports (Async)."""
+    """Business logic for reports (SYNC)."""  # ✅ Changed comment
     
     @staticmethod
-    async def create_report(
-        db: AsyncSession, 
+    def create_report(  # ✅ Removed async
+        db: Session,  # ✅ Changed from AsyncSession
         report_data: ReportCreate, 
         user_id: Optional[str] = None
     ) -> ReportResponse:
         """Create a new report with attachments."""
         
-        # Generate unique ID
         report_id = f"R-{uuid.uuid4().hex[:8].upper()}"
         
-        # Create Report object
         db_report = Report(
             reportId=report_id,
             title=report_data.title,
@@ -45,15 +74,11 @@ class ReportService:
             userId=user_id,
             transcribedVoiceText=report_data.transcribedVoiceText,
             status="Submitted",
-            aiConfidence=None,
-            createdAt=utcnow(),
-            updatedAt=utcnow()
+            aiConfidence=None
         )
         
-        # Add to session first
         db.add(db_report)
         
-        # Create attachments
         attachment_orms = []
         for att_data in report_data.attachments:
             new_attachment = Attachment(
@@ -67,19 +92,15 @@ class ReportService:
             db.add(new_attachment)
             attachment_orms.append(new_attachment)
         
-        # Commit everything
         try:
-            await db.commit()
+            db.commit()  # ✅ Removed await
+            db.refresh(db_report)  # ✅ Removed await
             
-            # Refresh to get server defaults
-            await db.refresh(db_report)
-            
-            # Build response manually (avoid lazy loading)
             attachment_responses = [
                 {
                     "attachmentId": att.attachmentId,
                     "reportId": att.reportId,
-                    "blobStorageUri": str(att.blobStorageUri),
+                    "blobStorageUri": att.blobStorageUri,
                     "mimeType": att.mimeType,
                     "fileType": att.fileType,
                     "fileSizeBytes": att.fileSizeBytes
@@ -102,35 +123,29 @@ class ReportService:
                 attachments=attachment_responses
             )
         except Exception as e:
-            await db.rollback()
+            db.rollback()  # ✅ Removed await
             raise HTTPException(
                 status_code=500, 
                 detail=f"Failed to create report: {str(e)}"
             )
 
     @staticmethod
-    async def get_report(db: AsyncSession, report_id: str) -> Optional[ReportResponse]:
+    def get_report(db: Session, report_id: str) -> Optional[ReportResponse]:  # ✅ Removed async
         """Get a single report by ID with attachments eagerly loaded."""
         
-        # Use selectinload to eagerly load attachments
-        stmt = (
-            select(Report)
-            .options(selectinload(Report.attachments))
-            .where(Report.reportId == report_id)
-        )
-        
-        result = await db.execute(stmt)
-        report = result.scalar_one_or_none()
+        # ✅ Use synchronous query
+        report = db.query(Report).options(
+            selectinload(Report.attachments)
+        ).filter(Report.reportId == report_id).first()
         
         if not report:
             return None
         
-        # Build attachment responses
         attachment_responses = [
             {
                 "attachmentId": att.attachmentId,
                 "reportId": att.reportId,
-                "blobStorageUri": str(att.blobStorageUri),
+                "blobStorageUri": att.blobStorageUri,
                 "mimeType": att.mimeType,
                 "fileType": att.fileType,
                 "fileSizeBytes": att.fileSizeBytes
@@ -154,8 +169,8 @@ class ReportService:
         )
     
     @staticmethod
-    async def list_reports(
-        db: AsyncSession, 
+    def list_reports(  # ✅ Removed async
+        db: Session, 
         skip: int = 0, 
         limit: int = 10,
         status: Optional[str] = None,
@@ -163,40 +178,25 @@ class ReportService:
     ) -> ReportListResponse:
         """List reports with pagination and eager loading."""
         
-        # Base query with eager loading
-        stmt = select(Report).options(selectinload(Report.attachments))
+        # ✅ Use synchronous query
+        query = db.query(Report).options(selectinload(Report.attachments))
         
-        # Apply filters
         if status:
-            stmt = stmt.where(Report.status == status)
+            query = query.filter(Report.status == status)
         if category:
-            stmt = stmt.where(Report.categoryId == category)
+            query = query.filter(Report.categoryId == category)
         
-        # Get total count (without eager loading for efficiency)
-        count_stmt = select(func.count()).select_from(
-            select(Report).where(
-                *(
-                    [Report.status == status] if status else []
-                    + [Report.categoryId == category] if category else []
-                )
-            ).subquery()
-        )
-        total_result = await db.execute(count_stmt)
-        total = total_result.scalar_one()
+        total = query.count()  # ✅ Removed await
         
-        # Apply pagination
-        stmt = stmt.order_by(Report.createdAt.desc()).offset(skip).limit(limit)
-        result = await db.execute(stmt)
-        reports = result.scalars().all()
+        reports = query.order_by(Report.createdAt.desc()).offset(skip).limit(limit).all()  # ✅ Removed await
         
-        # Convert to response schemas
         report_responses = []
         for r in reports:
             attachment_responses = [
                 {
                     "attachmentId": att.attachmentId,
                     "reportId": att.reportId,
-                    "blobStorageUri": str(att.blobStorageUri),
+                    "blobStorageUri": att.blobStorageUri,
                     "mimeType": att.mimeType,
                     "fileType": att.fileType,
                     "fileSizeBytes": att.fileSizeBytes
@@ -224,91 +224,59 @@ class ReportService:
         return ReportListResponse(
             reports=report_responses,
             total=total,
-            page=skip // limit + 1 if limit > 0 else 1,
+            page=(skip // limit) + 1 if limit > 0 else 1,
             pageSize=limit,
             totalPages=(total + limit - 1) // limit if limit > 0 else 1
         )
     
     @staticmethod
-    async def update_report_status(
-        db: AsyncSession,
+    def update_report_status(  # ✅ Removed async
+        db: Session,
         report_id: str,
         status_update: ReportStatusUpdate
     ) -> Optional[ReportResponse]:
         """Update report status."""
         
-        stmt = (
-            select(Report)
-            .options(selectinload(Report.attachments))
-            .where(Report.reportId == report_id)
-        )
-        
-        result = await db.execute(stmt)
-        report = result.scalar_one_or_none()
+        # ✅ Use synchronous query
+        report = db.query(Report).options(
+            selectinload(Report.attachments)
+        ).filter(Report.reportId == report_id).first()
         
         if not report:
             return None
         
-        # Update fields
         report.status = status_update.status.value
         report.updatedAt = utcnow()
         
         try:
-            await db.commit()
-            await db.refresh(report)
+            db.commit()  # ✅ Removed await
+            db.refresh(report)  # ✅ Removed await
             
-            # Build attachment responses
-            attachment_responses = [
-                {
-                    "attachmentId": att.attachmentId,
-                    "reportId": att.reportId,
-                    "blobStorageUri": str(att.blobStorageUri),
-                    "mimeType": att.mimeType,
-                    "fileType": att.fileType,
-                    "fileSizeBytes": att.fileSizeBytes
-                }
-                for att in report.attachments
-            ]
-            
-            return ReportResponse(
-                reportId=report.reportId,
-                title=report.title,
-                descriptionText=report.descriptionText,
-                categoryId=report.categoryId,
-                status=report.status,
-                location=report.locationRaw,
-                aiConfidence=report.aiConfidence,
-                createdAt=report.createdAt,
-                updatedAt=report.updatedAt,
-                userId=report.userId,
-                transcribedVoiceText=report.transcribedVoiceText,
-                attachments=attachment_responses
-            )
+            return ReportService.get_report(db, report_id)  # ✅ Removed await
         except Exception as e:
-            await db.rollback()
+            db.rollback()  # ✅ Removed await
             raise HTTPException(
                 status_code=500, 
                 detail=f"Failed to update report status: {str(e)}"
             )
     
     @staticmethod
-    async def delete_report(db: AsyncSession, report_id: str) -> bool:
+    def delete_report(db: Session, report_id: str) -> bool:  # ✅ Removed async
         """Delete a report."""
         
-        stmt = select(Report).where(Report.reportId == report_id)
-        result = await db.execute(stmt)
-        report = result.scalar_one_or_none()
+        report = db.query(Report).filter(Report.reportId == report_id).first()  # ✅ Removed await
         
         if not report:
             return False
         
         try:
-            await db.delete(report)
-            await db.commit()
+            db.delete(report)  # ✅ Removed await
+            db.commit()  # ✅ Removed await
             return True
         except Exception as e:
-            await db.rollback()
+            db.rollback()  # ✅ Removed await
             raise HTTPException(
                 status_code=500, 
                 detail=f"Failed to delete report: {str(e)}"
             )
+
