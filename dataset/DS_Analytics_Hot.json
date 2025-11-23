@@ -1,0 +1,82 @@
+{
+	"name": "DS_Analytics_Hot",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "Moi_Analytics",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [
+			{
+				"name": "reportId",
+				"type": "nvarchar"
+			},
+			{
+				"name": "title",
+				"type": "nvarchar"
+			},
+			{
+				"name": "descriptionText",
+				"type": "nvarchar"
+			},
+			{
+				"name": "locationRaw",
+				"type": "nvarchar"
+			},
+			{
+				"name": "status",
+				"type": "nvarchar"
+			},
+			{
+				"name": "categoryId",
+				"type": "nvarchar"
+			},
+			{
+				"name": "aiConfidence",
+				"type": "float",
+				"precision": 15
+			},
+			{
+				"name": "createdAt",
+				"type": "datetime2",
+				"scale": 7
+			},
+			{
+				"name": "updatedAt",
+				"type": "datetime2",
+				"scale": 7
+			},
+			{
+				"name": "userId",
+				"type": "nvarchar"
+			},
+			{
+				"name": "userRole",
+				"type": "nvarchar"
+			},
+			{
+				"name": "isAnonymous",
+				"type": "bit"
+			},
+			{
+				"name": "attachmentCount",
+				"type": "int",
+				"precision": 10
+			},
+			{
+				"name": "transcribedVoiceText",
+				"type": "nvarchar"
+			},
+			{
+				"name": "ExtractedAt",
+				"type": "datetime2",
+				"scale": 7
+			}
+		],
+		"typeProperties": {
+			"schema": "hot",
+			"table": "Fact_Reports"
+		}
+	}
+}

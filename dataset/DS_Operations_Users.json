@@ -1,0 +1,46 @@
+{
+	"name": "DS_Operations_Users",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "moi_operations",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [
+			{
+				"name": "userId",
+				"type": "nvarchar"
+			},
+			{
+				"name": "isAnonymous",
+				"type": "bit"
+			},
+			{
+				"name": "createdAt",
+				"type": "datetime2",
+				"scale": 7
+			},
+			{
+				"name": "role",
+				"type": "nvarchar"
+			},
+			{
+				"name": "email",
+				"type": "nvarchar"
+			},
+			{
+				"name": "phoneNumber",
+				"type": "nvarchar"
+			},
+			{
+				"name": "hashedDeviceId",
+				"type": "nvarchar"
+			}
+		],
+		"typeProperties": {
+			"schema": "dbo",
+			"table": "User"
+		}
+	}
+}

@@ -1,0 +1,216 @@
+{
+	"name": "PL_Sync_Operations_To_Analytics",
+	"properties": {
+		"activities": [
+			{
+				"name": "Lookup_Old_Watermark",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": "SELECT LastExtractedValue FROM ETL_Watermark WHERE TableName = 'Report'",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_Watermark",
+						"type": "DatasetReference"
+					}
+				}
+			},
+			{
+				"name": "Lookup_New_Watermark",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": "SELECT MAX(updatedAt) AS NewWatermark FROM [dbo].[Report]",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_Operations_Reports",
+						"type": "DatasetReference"
+					}
+				}
+			},
+			{
+				"name": "Copy_Incremental_Reports",
+				"type": "Copy",
+				"dependsOn": [
+					{
+						"activity": "Lookup_Old_Watermark",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Lookup_New_Watermark",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": "SELECT \n        r.reportId,\n        r.title,\n        r.descriptionText,\n        r.locationRaw,\n        r.status,\n        r.categoryId,\n        r.aiConfidence,\n        r.createdAt,\n        r.updatedAt,\n        r.userId,\n        u.role AS userRole,\n        u.isAnonymous,\n        COUNT(a.attachmentId) AS attachmentCount,\n        r.transcribedVoiceText\n    FROM [dbo].[Report] r\n    LEFT JOIN [dbo].[User] u ON r.userId = u.userId\n    LEFT JOIN [dbo].[Attachment] a ON r.reportId = a.reportId\n    WHERE r.updatedAt > '@{activity('Lookup_Old_Watermark').output.firstRow.LastExtractedValue}'\n      AND r.updatedAt <= '@{activity('Lookup_New_Watermark').output.firstRow.NewWatermark}'\n      AND r.createdAt >= DATEADD(DAY, -90, GETUTCDATE())\n    GROUP BY \n        r.reportId, r.title, r.descriptionText, r.locationRaw,\n        r.status, r.categoryId, r.aiConfidence, r.createdAt,\n        r.updatedAt, r.userId, u.role, u.isAnonymous, r.transcribedVoiceText",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"sink": {
+						"type": "AzureSqlSink",
+						"writeBehavior": "upsert",
+						"upsertSettings": {
+							"useTempDB": true,
+							"keys": [
+								"reportId"
+							]
+						},
+						"sqlWriterUseTableLock": false,
+						"disableMetricsCollection": false
+					},
+					"enableStaging": false,
+					"translator": {
+						"type": "TabularTranslator",
+						"typeConversion": true,
+						"typeConversionSettings": {
+							"allowDataTruncation": true,
+							"treatBooleanAsNumber": false
+						}
+					}
+				},
+				"inputs": [
+					{
+						"referenceName": "DS_Operations_Reports",
+						"type": "DatasetReference"
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "DS_Analytics_Hot",
+						"type": "DatasetReference"
+					}
+				]
+			},
+			{
+				"name": "Copy_To_Cold",
+				"type": "Copy",
+				"dependsOn": [
+					{
+						"activity": "Copy_Incremental_Reports",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": " SELECT \n        r.reportId,\n        r.title,\n        r.status,\n        r.categoryId,\n        r.createdAt,\n        r.updatedAt,\n        u.role AS userRole,\n        u.isAnonymous,\n        COUNT(a.attachmentId) AS attachmentCount,\n        r.aiConfidence\n    FROM [dbo].[Report] r\n    LEFT JOIN [dbo].[User] u ON r.userId = u.userId\n    LEFT JOIN [dbo].[Attachment] a ON r.reportId = a.reportId\n    WHERE r.createdAt < DATEADD(DAY, -90, GETUTCDATE())\n      AND NOT EXISTS (SELECT 1 FROM MOI_Analytics.cold.Fact_Reports c WHERE c.reportId = r.reportId)\n    GROUP BY \n        r.reportId, r.title, r.status, r.categoryId,\n        r.createdAt, r.updatedAt, u.role, u.isAnonymous, r.aiConfidence",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"sink": {
+						"type": "AzureSqlSink",
+						"writeBehavior": "insert",
+						"sqlWriterUseTableLock": false
+					},
+					"enableStaging": false,
+					"translator": {
+						"type": "TabularTranslator",
+						"typeConversion": true,
+						"typeConversionSettings": {
+							"allowDataTruncation": true,
+							"treatBooleanAsNumber": false
+						}
+					}
+				},
+				"inputs": [
+					{
+						"referenceName": "DS_Operations_Reports",
+						"type": "DatasetReference"
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "DS_Analytics_Cold",
+						"type": "DatasetReference"
+					}
+				]
+			},
+			{
+				"name": "Update_Watermark",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Copy_To_Cold",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "new procedure",
+					"storedProcedureParameters": {
+						"LastExtractedValue": {
+							"value": "@{activity('Lookup_New_Watermark').output.firstRow.NewWatermark}",
+							"type": "Datetime"
+						},
+						"TableName": {
+							"value": "\"Report\"",
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "moi_operations",
+					"type": "LinkedServiceReference"
+				}
+			}
+		],
+		"annotations": []
+	}
+}

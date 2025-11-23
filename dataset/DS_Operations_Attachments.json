@@ -1,0 +1,42 @@
+{
+	"name": "DS_Operations_Attachments",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "moi_operations",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [
+			{
+				"name": "attachmentId",
+				"type": "nvarchar"
+			},
+			{
+				"name": "reportId",
+				"type": "nvarchar"
+			},
+			{
+				"name": "blobStorageUri",
+				"type": "nvarchar"
+			},
+			{
+				"name": "mimeType",
+				"type": "nvarchar"
+			},
+			{
+				"name": "fileType",
+				"type": "nvarchar"
+			},
+			{
+				"name": "fileSizeBytes",
+				"type": "bigint",
+				"precision": 19
+			}
+		],
+		"typeProperties": {
+			"schema": "dbo",
+			"table": "Attachment"
+		}
+	}
+}

@@ -1,0 +1,66 @@
+{
+	"name": "DS_Analytics_Cold",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "Moi_Analytics",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [
+			{
+				"name": "reportId",
+				"type": "nvarchar"
+			},
+			{
+				"name": "title",
+				"type": "nvarchar"
+			},
+			{
+				"name": "status",
+				"type": "nvarchar"
+			},
+			{
+				"name": "categoryId",
+				"type": "nvarchar"
+			},
+			{
+				"name": "createdAt",
+				"type": "datetime2",
+				"scale": 7
+			},
+			{
+				"name": "updatedAt",
+				"type": "datetime2",
+				"scale": 7
+			},
+			{
+				"name": "userRole",
+				"type": "nvarchar"
+			},
+			{
+				"name": "isAnonymous",
+				"type": "bit"
+			},
+			{
+				"name": "attachmentCount",
+				"type": "int",
+				"precision": 10
+			},
+			{
+				"name": "aiConfidence",
+				"type": "float",
+				"precision": 15
+			},
+			{
+				"name": "ExtractedAt",
+				"type": "datetime2",
+				"scale": 7
+			}
+		],
+		"typeProperties": {
+			"schema": "cold",
+			"table": "Fact_Reports"
+		}
+	}
+}
