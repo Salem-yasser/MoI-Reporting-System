@@ -6,7 +6,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109.0-009688.svg)](https://fastapi.tiangolo.com)
 [![Azure](https://img.shields.io/badge/Azure-SQL%20%7C%20Blob%20%7C%20KeyVault-0078D4.svg)](https://azure.microsoft.com)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-
+/
 ---
 
 ## 📋 Table of Contents
