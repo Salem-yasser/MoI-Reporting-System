@@ -205,6 +205,7 @@ class ReportService:
         
         for att in report.attachments:
             download_url = blob_service.generate_download_url(att.blobStorageUri)
+            print(download_url)
             attachment_responses.append({
                 "attachmentId": att.attachmentId,
                 "reportId": att.reportId,

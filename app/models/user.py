@@ -24,6 +24,7 @@ class User(BaseOps):
     email = Column("email", String(256), nullable=True)
     phoneNumber = Column("phoneNumber", String(20), nullable=True)
     hashedDeviceId = Column("hashedDeviceId", String(256), nullable=True)
+    passwordHash = Column(String(256), nullable=True)
 
     # Relationships
     reports = relationship("Report", back_populates="user")

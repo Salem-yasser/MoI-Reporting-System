@@ -3,16 +3,7 @@ from typing import Optional, List
 from datetime import datetime
 from enum import Enum
 
-
-class AttachmentCreate(BaseModel):
-    blobStorageUri: str = Field(..., description="URI to the stored blob file.")
-    mimeType: str = Field(..., description="MIME type of the file.")
-    fileType: str = Field(..., description="Classification of the file (e.g., Image, Video, Document).")
-    fileSizeBytes: int = Field(..., description="Size of the file in bytes.")
-    
-class AttachmentResponse(AttachmentCreate):
-    attachmentId: str
-    reportId: str
+from app.schemas.attachment import AttachmentResponse, AttachmentCreate , FileType
 
 # Enums must match your SQL constraints exactly
 class ReportStatus(str, Enum):
@@ -83,6 +74,7 @@ class ReportResponse(ReportBase):
     updatedAt: datetime
     userId: Optional[str] = None
     transcribedVoiceText: Optional[str] = None
+    reportUrl : Optional[str] = None
     
     # Returns full attachment objects
     attachments: List[AttachmentResponse] = []
@@ -101,6 +93,7 @@ class ReportResponse(ReportBase):
             "ai_confidence": "aiConfidence",
             "transcribed_voice_text": "transcribedVoiceText",
             "hashed_device_id": "hashedDeviceId",
+            
         }.get(field_name, field_name),
         populate_by_name=True
     )
