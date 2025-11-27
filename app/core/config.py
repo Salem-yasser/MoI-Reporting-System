@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
     
     # Azure Key Vault
-    AZURE_KEY_VAULT_NAME: str
+    AZURE_KEY_VAULT_NAME: Optional[str] = os.getenv("AZURE_KEY_VAULT_NAME")
     AZURE_TENANT_ID: Optional[str] = None
     AZURE_CLIENT_ID: Optional[str] = None
     AZURE_CLIENT_SECRET: Optional[str] = None
@@ -25,8 +25,8 @@ class Settings(BaseSettings):
     # =========================================================
     
     # 1. Databases (Hot & Cold)
-    SQLALCHEMY_DATABASE_URI_OPS: Optional[str] = None      # Operations DB (Hot)
-    SQLALCHEMY_DATABASE_URI_ANALYTICS: Optional[str] = None # Analytics DB (Cold)
+    SQLALCHEMY_DATABASE_URI_OPS: Optional[str] = None      
+    SQLALCHEMY_DATABASE_URI_ANALYTICS: Optional[str] = None 
     
     # 2. Storage
     BLOB_STORAGE_CONNECTION_STRING: Optional[str] = None
@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     
     # 5. AI Services
     AZURE_SPEECH_KEY: Optional[str] = None
-    AZURE_SPEECH_REGION: str = "eastus" # Can be overridden by env var
+    AZURE_SPEECH_REGION: str = "eastus"
     AZURE_ML_ENDPOINT: Optional[str] = None
     AZURE_ML_API_KEY: Optional[str] = None
     
@@ -60,21 +60,20 @@ class Settings(BaseSettings):
 class AzureKeyVaultManager:
     def __init__(self, settings: Settings):
         self.settings = settings
-        # In local dev, we might skip KV if env vars are present, 
-        # but this ensures we can connect if needed.
         if self.settings.AZURE_KEY_VAULT_NAME:
             self.key_vault_url = f"https://{settings.AZURE_KEY_VAULT_NAME}.vault.azure.net/"
             self.credential = self._get_credential()
             self.secret_client = SecretClient(vault_url=self.key_vault_url, credential=self.credential)
     
     def _get_credential(self):
-        if self.settings.ENVIRONMENT == "development":
-            if all([self.settings.AZURE_TENANT_ID, self.settings.AZURE_CLIENT_ID, self.settings.AZURE_CLIENT_SECRET]):
-                return ClientSecretCredential(
-                    tenant_id=self.settings.AZURE_TENANT_ID,
-                    client_id=self.settings.AZURE_CLIENT_ID,
-                    client_secret=self.settings.AZURE_CLIENT_SECRET
-                )
+        # Use Client Secret if provided (common in Dev/CI)
+        if all([self.settings.AZURE_TENANT_ID, self.settings.AZURE_CLIENT_ID, self.settings.AZURE_CLIENT_SECRET]):
+            return ClientSecretCredential(
+                tenant_id=self.settings.AZURE_TENANT_ID,
+                client_id=self.settings.AZURE_CLIENT_ID,
+                client_secret=self.settings.AZURE_CLIENT_SECRET
+            )
+        # Fallback to Managed Identity (common in Azure App Service)
         return DefaultAzureCredential()
 
     def get_secret(self, secret_name: str) -> str:
@@ -87,41 +86,30 @@ class AzureKeyVaultManager:
 
     def load_secrets_to_settings(self, settings: Settings) -> Settings:
         """
-        Maps Azure Key Vault secret names (Kebab-Case or CamelCase) 
-        to Pydantic Settings (SNAKE_CASE).
+        Maps Azure Key Vault secret names to Pydantic Settings.
+        Only loads secrets that are currently None.
         """
-        # Format: "NameInKeyVault": "NameInSettings"
         secrets_mapping = {
-            # Databases
             "SqlOpsConnectionString": "SQLALCHEMY_DATABASE_URI_OPS",
             "SqlAnalyticsConnectionString": "SQLALCHEMY_DATABASE_URI_ANALYTICS",
-            
-            # Storage & Security
             "BlobStorageConnectionString": "BLOB_STORAGE_CONNECTION_STRING",
             "JwtSecretKey": "SECRET_KEY",
-            
-            # Hot Path Queue
             "ServiceBusConnectionString": "AZURE_SERVICE_BUS_CONNECTION_STRING",
-            
-            # AI Services
             "SpeechServiceKey": "AZURE_SPEECH_KEY",
             "AzureMlEndpoint": "AZURE_ML_ENDPOINT",
             "AzureMlApiKey": "AZURE_ML_API_KEY",
         }
 
         for kv_name, setting_name in secrets_mapping.items():
-            # Only fetch from KV if not already set via Environment Variable
+            # Check if setting is missing (None)
             if getattr(settings, setting_name) is None:
                 try:
                     value = self.get_secret(kv_name)
                     setattr(settings, setting_name, value)
                     logger.info(f"✓ Loaded secret: {kv_name}")
                 except Exception as e:
-                    logger.error(f"✗ Failed to load secret '{kv_name}': {e}")
-                    # Fail fast in production
-                    if settings.ENVIRONMENT == "production":
-                        raise RuntimeError(f"Critical secret '{kv_name}' missing in production")
-        
+                    logger.warning(f"✗ Failed to load secret '{kv_name}': {e}")
+                    
         return settings
 
 
@@ -129,8 +117,9 @@ class AzureKeyVaultManager:
 def get_settings() -> Settings:
     settings = Settings()
     
-    # If critical DB connection is missing, attempt to load from Key Vault
-    if settings.SQLALCHEMY_DATABASE_URI_OPS is None and settings.AZURE_KEY_VAULT_NAME:
+    # ⚡ FIX: Always try to load from Key Vault if configured,
+    # regardless of whether some DB strings are already set in .env
+    if settings.AZURE_KEY_VAULT_NAME:
         try:
             kv_manager = AzureKeyVaultManager(settings)
             settings = kv_manager.load_secrets_to_settings(settings)
@@ -138,3 +127,6 @@ def get_settings() -> Settings:
             logger.warning(f"Could not load secrets from Key Vault: {e}")
             
     return settings
+
+# Instantiate settings so other modules can import it
+settings = get_settings()
