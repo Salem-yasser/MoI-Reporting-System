@@ -1,0 +1,33 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"factoryName": {
+			"value": "MOI-data-factory"
+		},
+		"Moi_Analytics_password": {
+			"value": ""
+		},
+		"moi_operations_password": {
+			"value": ""
+		},
+		"Moi_Analytics_properties_typeProperties_server": {
+			"value": "moi-server.database.windows.net"
+		},
+		"Moi_Analytics_properties_typeProperties_database": {
+			"value": "Analytics Database"
+		},
+		"Moi_Analytics_properties_typeProperties_userName": {
+			"value": "moi-server-admin"
+		},
+		"moi_operations_properties_typeProperties_server": {
+			"value": "moi-server.database.windows.net"
+		},
+		"moi_operations_properties_typeProperties_database": {
+			"value": "moi-database"
+		},
+		"moi_operations_properties_typeProperties_userName": {
+			"value": "moi-server-admin"
+		}
+	}
+}
