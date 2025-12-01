@@ -1,0 +1,723 @@
+{
+	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"factoryName": {
+			"type": "string",
+			"metadata": "Data Factory name",
+			"defaultValue": "MOI-data-factory"
+		},
+		"Moi_Analytics_password": {
+			"type": "secureString",
+			"metadata": "Secure string for 'password' of 'Moi_Analytics'"
+		},
+		"moi_operations_password": {
+			"type": "secureString",
+			"metadata": "Secure string for 'password' of 'moi_operations'"
+		},
+		"Moi_Analytics_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "moi-server.database.windows.net"
+		},
+		"Moi_Analytics_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "Analytics Database"
+		},
+		"Moi_Analytics_properties_typeProperties_userName": {
+			"type": "string",
+			"defaultValue": "moi-server-admin"
+		},
+		"moi_operations_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "moi-server.database.windows.net"
+		},
+		"moi_operations_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "moi-database"
+		},
+		"moi_operations_properties_typeProperties_userName": {
+			"type": "string",
+			"defaultValue": "moi-server-admin"
+		}
+	},
+	"variables": {
+		"factoryId": "[concat('Microsoft.DataFactory/factories/', parameters('factoryName'))]"
+	},
+	"resources": [
+		{
+			"name": "[concat(parameters('factoryName'), '/Moi_Analytics')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "AzureSqlDatabase",
+				"typeProperties": {
+					"server": "[parameters('Moi_Analytics_properties_typeProperties_server')]",
+					"database": "[parameters('Moi_Analytics_properties_typeProperties_database')]",
+					"encrypt": "mandatory",
+					"trustServerCertificate": false,
+					"authenticationType": "SQL",
+					"userName": "[parameters('Moi_Analytics_properties_typeProperties_userName')]",
+					"password": {
+						"type": "SecureString",
+						"value": "[parameters('Moi_Analytics_password')]"
+					}
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/moi_operations')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "AzureSqlDatabase",
+				"typeProperties": {
+					"server": "[parameters('moi_operations_properties_typeProperties_server')]",
+					"database": "[parameters('moi_operations_properties_typeProperties_database')]",
+					"encrypt": "mandatory",
+					"trustServerCertificate": false,
+					"authenticationType": "SQL",
+					"userName": "[parameters('moi_operations_properties_typeProperties_userName')]",
+					"password": {
+						"type": "SecureString",
+						"value": "[parameters('moi_operations_password')]"
+					}
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_Analytics_Cold')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "Moi_Analytics",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [
+					{
+						"name": "reportId",
+						"type": "nvarchar"
+					},
+					{
+						"name": "title",
+						"type": "nvarchar"
+					},
+					{
+						"name": "status",
+						"type": "nvarchar"
+					},
+					{
+						"name": "categoryId",
+						"type": "nvarchar"
+					},
+					{
+						"name": "createdAt",
+						"type": "datetime2",
+						"scale": 7
+					},
+					{
+						"name": "updatedAt",
+						"type": "datetime2",
+						"scale": 7
+					},
+					{
+						"name": "userRole",
+						"type": "nvarchar"
+					},
+					{
+						"name": "isAnonymous",
+						"type": "bit"
+					},
+					{
+						"name": "attachmentCount",
+						"type": "int",
+						"precision": 10
+					},
+					{
+						"name": "aiConfidence",
+						"type": "float",
+						"precision": 15
+					},
+					{
+						"name": "ExtractedAt",
+						"type": "datetime2",
+						"scale": 7
+					}
+				],
+				"typeProperties": {
+					"schema": "cold",
+					"table": "Fact_Reports"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/Moi_Analytics')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_Analytics_Hot')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "Moi_Analytics",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [
+					{
+						"name": "reportId",
+						"type": "nvarchar"
+					},
+					{
+						"name": "title",
+						"type": "nvarchar"
+					},
+					{
+						"name": "descriptionText",
+						"type": "nvarchar"
+					},
+					{
+						"name": "locationRaw",
+						"type": "nvarchar"
+					},
+					{
+						"name": "status",
+						"type": "nvarchar"
+					},
+					{
+						"name": "categoryId",
+						"type": "nvarchar"
+					},
+					{
+						"name": "aiConfidence",
+						"type": "float",
+						"precision": 15
+					},
+					{
+						"name": "createdAt",
+						"type": "datetime2",
+						"scale": 7
+					},
+					{
+						"name": "updatedAt",
+						"type": "datetime2",
+						"scale": 7
+					},
+					{
+						"name": "userId",
+						"type": "nvarchar"
+					},
+					{
+						"name": "userRole",
+						"type": "nvarchar"
+					},
+					{
+						"name": "isAnonymous",
+						"type": "bit"
+					},
+					{
+						"name": "attachmentCount",
+						"type": "int",
+						"precision": 10
+					},
+					{
+						"name": "transcribedVoiceText",
+						"type": "nvarchar"
+					},
+					{
+						"name": "ExtractedAt",
+						"type": "datetime2",
+						"scale": 7
+					}
+				],
+				"typeProperties": {
+					"schema": "hot",
+					"table": "Fact_Reports"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/Moi_Analytics')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_Operations_Attachments')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "moi_operations",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [
+					{
+						"name": "attachmentId",
+						"type": "nvarchar"
+					},
+					{
+						"name": "reportId",
+						"type": "nvarchar"
+					},
+					{
+						"name": "blobStorageUri",
+						"type": "nvarchar"
+					},
+					{
+						"name": "mimeType",
+						"type": "nvarchar"
+					},
+					{
+						"name": "fileType",
+						"type": "nvarchar"
+					},
+					{
+						"name": "fileSizeBytes",
+						"type": "bigint",
+						"precision": 19
+					}
+				],
+				"typeProperties": {
+					"schema": "dbo",
+					"table": "Attachment"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/moi_operations')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_Operations_Reports')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "moi_operations",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [
+					{
+						"name": "reportId",
+						"type": "nvarchar"
+					},
+					{
+						"name": "title",
+						"type": "nvarchar"
+					},
+					{
+						"name": "descriptionText",
+						"type": "nvarchar"
+					},
+					{
+						"name": "locationRaw",
+						"type": "nvarchar"
+					},
+					{
+						"name": "status",
+						"type": "nvarchar"
+					},
+					{
+						"name": "categoryId",
+						"type": "nvarchar"
+					},
+					{
+						"name": "aiConfidence",
+						"type": "float",
+						"precision": 15
+					},
+					{
+						"name": "createdAt",
+						"type": "datetime2",
+						"scale": 7
+					},
+					{
+						"name": "updatedAt",
+						"type": "datetime2",
+						"scale": 7
+					},
+					{
+						"name": "userId",
+						"type": "nvarchar"
+					},
+					{
+						"name": "transcribedVoiceText",
+						"type": "nvarchar"
+					}
+				],
+				"typeProperties": {
+					"schema": "dbo",
+					"table": "Report"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/moi_operations')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_Operations_Users')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "moi_operations",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [
+					{
+						"name": "userId",
+						"type": "nvarchar"
+					},
+					{
+						"name": "isAnonymous",
+						"type": "bit"
+					},
+					{
+						"name": "createdAt",
+						"type": "datetime2",
+						"scale": 7
+					},
+					{
+						"name": "role",
+						"type": "nvarchar"
+					},
+					{
+						"name": "email",
+						"type": "nvarchar"
+					},
+					{
+						"name": "phoneNumber",
+						"type": "nvarchar"
+					},
+					{
+						"name": "hashedDeviceId",
+						"type": "nvarchar"
+					}
+				],
+				"typeProperties": {
+					"schema": "dbo",
+					"table": "User"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/moi_operations')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_Watermark')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "moi_operations",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [
+					{
+						"name": "TableName",
+						"type": "nvarchar"
+					},
+					{
+						"name": "LastExtractedValue",
+						"type": "datetime2",
+						"scale": 7
+					},
+					{
+						"name": "UpdatedAt",
+						"type": "datetime2",
+						"scale": 7
+					}
+				],
+				"typeProperties": {
+					"schema": "dbo",
+					"table": "ETL_Watermark"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/moi_operations')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/PL_Sync_Operations_To_Analytics')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "Lookup_Old_Watermark",
+						"type": "Lookup",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "AzureSqlSource",
+								"sqlReaderQuery": "SELECT LastExtractedValue FROM ETL_Watermark WHERE TableName = 'Report'",
+								"queryTimeout": "02:00:00",
+								"partitionOption": "None"
+							},
+							"dataset": {
+								"referenceName": "DS_Watermark",
+								"type": "DatasetReference",
+								"parameters": {}
+							}
+						}
+					},
+					{
+						"name": "Lookup_New_Watermark",
+						"type": "Lookup",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "AzureSqlSource",
+								"sqlReaderQuery": "SELECT MAX(updatedAt) AS NewWatermark FROM [dbo].[Report]",
+								"queryTimeout": "02:00:00",
+								"partitionOption": "None"
+							},
+							"dataset": {
+								"referenceName": "DS_Operations_Reports",
+								"type": "DatasetReference",
+								"parameters": {}
+							}
+						}
+					},
+					{
+						"name": "Copy_Incremental_Reports",
+						"type": "Copy",
+						"dependsOn": [
+							{
+								"activity": "Lookup_Old_Watermark",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "Lookup_New_Watermark",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "AzureSqlSource",
+								"sqlReaderQuery": {
+									"value": "SELECT \n        r.reportId,\n        r.title,\n        r.descriptionText,\n        r.locationRaw,\n        r.status,\n        r.categoryId,\n        r.aiConfidence,\n        r.createdAt,\n        r.updatedAt,\n        r.userId,\n        u.role AS userRole,\n        u.isAnonymous,\n        COUNT(a.attachmentId) AS attachmentCount,\n        r.transcribedVoiceText\n    FROM [dbo].[Report] r\n    LEFT JOIN [dbo].[User] u ON r.userId = u.userId\n    LEFT JOIN [dbo].[Attachment] a ON r.reportId = a.reportId\n    WHERE r.updatedAt > '@{activity('Lookup_Old_Watermark').output.firstRow.LastExtractedValue}'\n      AND r.updatedAt <= '@{activity('Lookup_New_Watermark').output.firstRow.NewWatermark}'\n      AND r.createdAt >= DATEADD(DAY, -90, GETUTCDATE())\n    GROUP BY \n        r.reportId, r.title, r.descriptionText, r.locationRaw,\n        r.status, r.categoryId, r.aiConfidence, r.createdAt,\n        r.updatedAt, r.userId, u.role, u.isAnonymous, r.transcribedVoiceText",
+									"type": "Expression"
+								},
+								"queryTimeout": "02:00:00",
+								"partitionOption": "None"
+							},
+							"sink": {
+								"type": "AzureSqlSink",
+								"writeBehavior": "upsert",
+								"upsertSettings": {
+									"useTempDB": true,
+									"keys": [
+										"reportId"
+									]
+								},
+								"sqlWriterUseTableLock": false,
+								"disableMetricsCollection": false
+							},
+							"enableStaging": false,
+							"translator": {
+								"type": "TabularTranslator",
+								"typeConversion": true,
+								"typeConversionSettings": {
+									"allowDataTruncation": true,
+									"treatBooleanAsNumber": false
+								}
+							}
+						},
+						"inputs": [
+							{
+								"referenceName": "DS_Operations_Reports",
+								"type": "DatasetReference",
+								"parameters": {}
+							}
+						],
+						"outputs": [
+							{
+								"referenceName": "DS_Analytics_Hot",
+								"type": "DatasetReference",
+								"parameters": {}
+							}
+						]
+					},
+					{
+						"name": "Copy_To_Cold",
+						"type": "Copy",
+						"dependsOn": [
+							{
+								"activity": "Copy_Incremental_Reports",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "AzureSqlSource",
+								"sqlReaderQuery": "SELECT *\nFROM [hot].[Fact_Reports] h\nWHERE NOT EXISTS (\n    SELECT 1\n    FROM [cold].[Fact_Reports] c\n    WHERE c.reportId = h.reportId\n);\n",
+								"queryTimeout": "02:00:00",
+								"partitionOption": "None"
+							},
+							"sink": {
+								"type": "AzureSqlSink",
+								"writeBehavior": "insert",
+								"sqlWriterUseTableLock": false
+							},
+							"enableStaging": false,
+							"translator": {
+								"type": "TabularTranslator",
+								"typeConversion": true,
+								"typeConversionSettings": {
+									"allowDataTruncation": true,
+									"treatBooleanAsNumber": false
+								}
+							}
+						},
+						"inputs": [
+							{
+								"referenceName": "DS_Analytics_Hot",
+								"type": "DatasetReference",
+								"parameters": {}
+							}
+						],
+						"outputs": [
+							{
+								"referenceName": "DS_Analytics_Cold",
+								"type": "DatasetReference",
+								"parameters": {}
+							}
+						]
+					},
+					{
+						"name": "Update_Watermark",
+						"type": "SqlServerStoredProcedure",
+						"dependsOn": [
+							{
+								"activity": "Copy_To_Cold",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"storedProcedureName": "[[dbo].[usp_UpdateWatermark]",
+							"storedProcedureParameters": {
+								"LastExtractedValue": {
+									"value": {
+										"value": "@{activity('Lookup_New_Watermark').output.firstRow.NewWatermark}",
+										"type": "Expression"
+									},
+									"type": "Datetime"
+								},
+								"TableName": {
+									"value": "\"Report\"",
+									"type": "String"
+								}
+							}
+						},
+						"linkedServiceName": {
+							"referenceName": "moi_operations",
+							"type": "LinkedServiceReference"
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/DS_Watermark')]",
+				"[concat(variables('factoryId'), '/datasets/DS_Operations_Reports')]",
+				"[concat(variables('factoryId'), '/datasets/DS_Analytics_Hot')]",
+				"[concat(variables('factoryId'), '/datasets/DS_Analytics_Cold')]",
+				"[concat(variables('factoryId'), '/linkedServices/moi_operations')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/TR_Sync_Every_15_Minutes')]",
+			"type": "Microsoft.DataFactory/factories/triggers",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"runtimeState": "Started",
+				"pipelines": [
+					{
+						"pipelineReference": {
+							"referenceName": "PL_Sync_Operations_To_Analytics",
+							"type": "PipelineReference"
+						},
+						"parameters": {}
+					}
+				],
+				"type": "ScheduleTrigger",
+				"typeProperties": {
+					"recurrence": {
+						"frequency": "Minute",
+						"interval": 15,
+						"startTime": "2025-11-22T16:34:00",
+						"timeZone": "Egypt Standard Time"
+					}
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/pipelines/PL_Sync_Operations_To_Analytics')]"
+			]
+		}
+	]
+}
